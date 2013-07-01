@@ -19,4 +19,4 @@ library
   exposed-modules:     Data.FileCache
   ghc-options:         -Wall
   -- other-modules:       
-  build-depends:       base ==4.6.*, stm, unordered-containers, hashable, hinotify
+  build-depends:       base ==4.6.*, stm, unordered-containers, hashable, hinotify, strict-base-types >= 0.2

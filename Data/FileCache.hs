@@ -5,9 +5,11 @@ import Control.Concurrent.STM
 import qualified Data.HashMap.Strict as HM
 import System.INotify
 import Control.Concurrent
+import qualified Data.Either.Strict as S
+import Control.Exception
 
 data Messages a = Invalidate !FilePath
-                | Query !FilePath !(IO a) !(TMVar a)
+                | Query !FilePath !(IO (S.Either String a)) !(TMVar (S.Either String a))
                 | GetCopy !(TMVar (HM.HashMap FilePath (a, WatchDescriptor)))
 
 data FileCache a = FileCache !(TQueue (Messages a)) ThreadId
@@ -34,12 +36,15 @@ mapMaster mp q = do
                 Just (_,desc) -> removeWatch desc >> mapMaster (HM.delete fp mp) q
         Query fp action respvar ->
             case HM.lookup fp mp of
-                Just (x,_) -> atomically (putTMVar respvar x)
+                Just (x,_) -> atomically (putTMVar respvar (S.Right x))
                 Nothing -> do
-                    val <- action
-                    wm <- withINotify (\ino -> addWatch ino [CloseWrite,Delete,Move] fp (const $ invalidate fp (FileCache q undefined)))
-                    atomically (putTMVar respvar val)
-                    mapMaster (HM.insert fp (val,wm) mp) q
+                    valr <- action `catch` (\e -> return (S.Left ("Exception: " ++ show (e :: SomeException))))
+                    case valr of
+                        S.Right val -> do
+                            wm <- withINotify (\ino -> addWatch ino [CloseWrite,Delete,Move] fp (const $ invalidate fp (FileCache q undefined)))
+                            atomically (putTMVar respvar (S.Right val))
+                            mapMaster (HM.insert fp (val,wm) mp) q
+                        S.Left rr -> atomically (putTMVar respvar (S.Left rr))
         GetCopy mv -> atomically (putTMVar mv mp) >> mapMaster mp q
 
 -- | Manually invalidates an entry.
@@ -49,8 +54,8 @@ invalidate fp (FileCache q _) = atomically (writeTQueue q (Invalidate fp))
 -- | Queries the cache, populating it if necessary.
 query :: FileCache a
       -> FilePath -- ^ Path of the file entry
-      -> IO a -- ^ The computation that will be used to populate the cache
-      -> IO a
+      -> IO (S.Either String a) -- ^ The computation that will be used to populate the cache
+      -> IO (S.Either String a)
 query (FileCache q _) fp generate = atomically $ do
     v <- newEmptyTMVar
     writeTQueue q (Query fp generate v)
