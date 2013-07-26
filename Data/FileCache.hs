@@ -29,25 +29,30 @@ killFileCache (FileCache q) = writeChan q Stop
 
 mapMaster :: HM.HashMap FilePath (a, WatchDescriptor) -> Chan (Messages a) -> INotify -> IO ()
 mapMaster mp q ino = do
+    let nochange = return (Just mp)
+        change x = return (Just (x mp))
     msg <- readChan q
-    case msg of
-        Stop -> killINotify ino
-        Invalidate fp ->
-            case HM.lookup fp mp of
-                Nothing -> mapMaster mp q ino
-                Just (_,desc) -> removeWatch desc >> mapMaster (HM.delete fp mp) q ino
-        Query fp action respvar ->
-            case HM.lookup fp mp of
-                Just (x,_) -> putMVar respvar (S.Right x)
-                Nothing -> do
-                    valr <- action `catch` (\e -> return (S.Left ("Exception: " ++ show (e :: SomeException))))
-                    case valr of
-                        S.Right val -> do -- this is blocking for some reason
-                            wm <- addWatch ino [CloseWrite,Delete,Move] fp (const $ invalidate fp (FileCache q))
-                            putMVar respvar (S.Right val)
-                            mapMaster (HM.insert fp (val,wm) mp) q ino
-                        S.Left rr -> putMVar respvar (S.Left rr)
-        GetCopy mv -> putMVar mv mp >> mapMaster mp q ino
+    nmp <- case msg of
+            Stop -> killINotify ino >> return Nothing
+            Invalidate fp ->
+                case HM.lookup fp mp of
+                    Nothing -> nochange
+                    Just (_,desc) -> removeWatch desc >> change (HM.delete fp)
+            Query fp action respvar ->
+                case HM.lookup fp mp of
+                    Just (x,_) -> putMVar respvar (S.Right x) >> nochange
+                    Nothing -> do
+                        valr <- action `catch` (\e -> return (S.Left ("Exception: " ++ show (e :: SomeException))))
+                        case valr of
+                            S.Right val -> do -- this is blocking for some reason
+                                wm <- addWatch ino [CloseWrite,Delete,Move] fp (const $ invalidate fp (FileCache q))
+                                putMVar respvar (S.Right val)
+                                change (HM.insert fp (val,wm))
+                            S.Left rr -> putMVar respvar (S.Left rr) >> nochange
+            GetCopy mv -> putMVar mv mp >> nochange
+    case nmp of
+        Just x -> mapMaster x q ino
+        Nothing -> return ()
 
 -- | Manually invalidates an entry.
 invalidate :: FilePath -> FileCache a -> IO ()
