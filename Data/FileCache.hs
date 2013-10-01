@@ -7,6 +7,7 @@ import qualified Data.Either.Strict as S
 import Control.Exception
 import Control.Monad
 import Control.Monad.Error.Class
+import Control.Exception.Lens
 
 data Messages r a = Invalidate !FilePath
                   | Query !FilePath !(IO (S.Either r a)) !(MVar (S.Either r a))
@@ -39,17 +40,22 @@ mapMaster mp q ino = do
             Invalidate fp ->
                 case HM.lookup fp mp of
                     Nothing -> nochange
-                    Just (_,desc) -> removeWatch desc >> change (HM.delete fp)
+                    Just (_,desc) -> catching_ id (removeWatch desc) (return ()) >> change (HM.delete fp)
             Query fp action respvar ->
                 case HM.lookup fp mp of
                     Just (x,_) -> putMVar respvar x >> nochange
                     Nothing -> do
-                        valr <- catch action $ \e -> do
-                            let r = strMsg $ "Exception: " ++ show (e :: SomeException)
-                            return (S.Left r)
-                        wm <- addWatch ino [CloseWrite,Delete,Move,Attrib,Create] fp (const $ invalidate fp (FileCache q))
-                        putMVar respvar valr
-                        change (HM.insert fp (valr,wm))
+                        let addw value = do
+                                wm <- addWatch ino [CloseWrite,Delete,Move,Attrib,Create] fp (const $ invalidate fp (FileCache q))
+                                change (HM.insert fp (value,wm))
+                            withWatch value = do
+                                putMVar respvar value
+                                catching_ id (addw value) nochange
+                            noWatch x = putMVar respvar x >> nochange
+                        catches (action >>= withWatch)
+                            [ handler _IOException (\io -> noWatch   (S.Left (strMsg $ show io)))
+                            , handler id           (\e  -> withWatch (S.Left (strMsg $ show e)))
+                            ]
             GetCopy mv -> putMVar mv mp >> nochange
     case nmp of
         Just x -> mapMaster x q ino
