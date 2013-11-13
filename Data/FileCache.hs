@@ -1,3 +1,13 @@
+{- |
+This module let you create caches where keys are file names, and values are automatically expired when the file is modified for any reason.
+
+This is usually done in the following fashion :
+
+> cache <- newFileCache
+> o <- query cache "/path/to/file" computation
+
+The computation will be used to populate the cache if this call results in a miss.
+-}
 module Data.FileCache (FileCache, FileCacheR, newFileCache, killFileCache, invalidate, query, getCache, lazyQuery) where
 
 import qualified Data.HashMap.Strict as HM
@@ -14,7 +24,11 @@ data Messages r a = Invalidate !FilePath
                   | GetCopy !(MVar (HM.HashMap FilePath (S.Either r a, WatchDescriptor)))
                   | Stop
 
+-- | The main FileCache type, for queries returning 'Either r a'. The r
+-- type must be an instance of 'Error'.
 data FileCacheR r a = FileCache !(Chan (Messages r a))
+
+-- | A default type synonym, for String errors.
 type FileCache = FileCacheR String
 
 -- | Generates a new file cache. The opaque type is for use with other
@@ -65,7 +79,12 @@ mapMaster mp q ino = do
 invalidate :: Error r => FilePath -> FileCacheR r a -> IO ()
 invalidate fp (FileCache q) = writeChan q (Invalidate fp)
 
--- | Queries the cache, populating it if necessary.
+-- | Queries the cache, populating it if necessary, returning a strict
+-- 'Either' (from "Data.Either.Strict").
+--
+-- Queries that fail with an 'IOExeception' will not create a cache entry.
+-- Also please note that there is a race condition between the potential
+-- execution of the computation and the establishment of the watch.
 query :: Error r
       => FileCacheR r a
       -> FilePath -- ^ Path of the file entry
