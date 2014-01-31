@@ -30,7 +30,7 @@ library
                      , unordered-containers == 0.2.*
                      , hashable             >= 1.2   && < 1.3
                      , hinotify             >= 0.3.6 && < 0.4
-                     , strict-base-types    >= 0.2
+                     , strict-base-types    >= 0.2.2
                      , mtl                  == 2.1.*
                      , lens                 >= 3.9 && < 5
                      , stm
