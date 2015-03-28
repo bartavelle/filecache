@@ -14,11 +14,11 @@ import qualified Data.HashMap.Strict as HM
 import System.INotify
 import Control.Concurrent.STM
 import qualified Data.Either.Strict as S
-import Control.Exception
 import Control.Monad.Catch
 import Control.Exception.Lens
 import Control.Applicative
 import Control.Monad (join)
+import Data.String
 
 -- | The main FileCache type, for queries returning 'Either r a'. The r
 -- type must be an instance of 'Error'.
@@ -29,7 +29,7 @@ type FileCache = FileCacheR String
 
 -- | Generates a new file cache. The opaque type is for use with other
 -- functions.
-newFileCache :: Exception e => IO (FileCacheR r a)
+newFileCache :: IO (FileCacheR r a)
 newFileCache = FileCache <$> newTVarIO HM.empty <*> initINotify
 
 -- | Destroys the thread running the FileCache. Pretty dangerous stuff.
@@ -37,7 +37,7 @@ killFileCache :: FileCacheR r a -> IO ()
 killFileCache (FileCache _ ino) = killINotify ino
 
 -- | Manually invalidates an entry.
-invalidate :: Exception e => FilePath -> FileCacheR e a -> IO ()
+invalidate :: FilePath -> FileCacheR e a -> IO ()
 invalidate fp (FileCache q _) = join $ atomically $ do
     mp <- readTVar q
     case HM.lookup fp mp of
@@ -52,7 +52,7 @@ invalidate fp (FileCache q _) = join $ atomically $ do
 -- Queries that fail with an 'IOExeception' will not create a cache entry.
 -- Also please note that there is a race condition between the potential
 -- execution of the computation and the establishment of the watch.
-query :: Exception e
+query :: IsString e
       => FileCacheR e a
       -> FilePath -- ^ Path of the file entry
       -> IO (S.Either e a) -- ^ The computation that will be used to populate the cache
@@ -71,11 +71,11 @@ query f@(FileCache q ino) fp action = do
                 change = atomically . modifyTVar q
                 nochange = return ()
             catches (action >>= withWatch)
-                [ handler _IOException (\io -> return    (S.Left (strMsg $ show io)))
-                , handler id           (\e  -> withWatch (S.Left (strMsg $ show e)))
+                [ handler _IOException (return . S.Left . fromString . show)
+                , handler id           (withWatch . S.Left . fromString . show)
                 ]
 -- | Just like `query`, but with the standard "Either" type.
-lazyQuery :: Exception e r
+lazyQuery :: IsString r
           => FileCacheR r a
           -> FilePath -- ^ Path of the file entry
           -> IO (Either r a) -- ^ The computation that will be used to populate the cache
@@ -88,6 +88,6 @@ lazyQuery q fp generate = fmap unstrict (query q fp (fmap strict generate))
         unstrict (S.Right x) = Right x
 
 -- | Gets a copy of the cache.
-getCache :: Exception e => FileCacheR e a -> IO (HM.HashMap FilePath (S.Either e a, WatchDescriptor))
+getCache :: FileCacheR e a -> IO (HM.HashMap FilePath (S.Either e a, WatchDescriptor))
 getCache (FileCache q _) = atomically (readTVar q)
 
