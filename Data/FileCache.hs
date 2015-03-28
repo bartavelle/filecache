@@ -15,7 +15,7 @@ import System.INotify
 import Control.Concurrent.STM
 import qualified Data.Either.Strict as S
 import Control.Exception
-import Control.Monad.Error.Class
+import Control.Monad.Catch
 import Control.Exception.Lens
 import Control.Applicative
 import Control.Monad (join)
@@ -29,7 +29,7 @@ type FileCache = FileCacheR String
 
 -- | Generates a new file cache. The opaque type is for use with other
 -- functions.
-newFileCache :: Error r => IO (FileCacheR r a)
+newFileCache :: Exception e => IO (FileCacheR r a)
 newFileCache = FileCache <$> newTVarIO HM.empty <*> initINotify
 
 -- | Destroys the thread running the FileCache. Pretty dangerous stuff.
@@ -37,7 +37,7 @@ killFileCache :: FileCacheR r a -> IO ()
 killFileCache (FileCache _ ino) = killINotify ino
 
 -- | Manually invalidates an entry.
-invalidate :: Error r => FilePath -> FileCacheR r a -> IO ()
+invalidate :: Exception e => FilePath -> FileCacheR e a -> IO ()
 invalidate fp (FileCache q _) = join $ atomically $ do
     mp <- readTVar q
     case HM.lookup fp mp of
@@ -52,11 +52,11 @@ invalidate fp (FileCache q _) = join $ atomically $ do
 -- Queries that fail with an 'IOExeception' will not create a cache entry.
 -- Also please note that there is a race condition between the potential
 -- execution of the computation and the establishment of the watch.
-query :: Error r
-      => FileCacheR r a
+query :: Exception e
+      => FileCacheR e a
       -> FilePath -- ^ Path of the file entry
-      -> IO (S.Either r a) -- ^ The computation that will be used to populate the cache
-      -> IO (S.Either r a)
+      -> IO (S.Either e a) -- ^ The computation that will be used to populate the cache
+      -> IO (S.Either e a)
 query f@(FileCache q ino) fp action = do
     mp <- getCache f
     case HM.lookup fp mp of
@@ -75,11 +75,11 @@ query f@(FileCache q ino) fp action = do
                 , handler id           (\e  -> withWatch (S.Left (strMsg $ show e)))
                 ]
 -- | Just like `query`, but with the standard "Either" type.
-lazyQuery :: Error r
-      => FileCacheR r a
-      -> FilePath -- ^ Path of the file entry
-      -> IO (Either r a) -- ^ The computation that will be used to populate the cache
-      -> IO (Either r a)
+lazyQuery :: Exception e r
+          => FileCacheR r a
+          -> FilePath -- ^ Path of the file entry
+          -> IO (Either r a) -- ^ The computation that will be used to populate the cache
+          -> IO (Either r a)
 lazyQuery q fp generate = fmap unstrict (query q fp (fmap strict generate))
     where
         strict (Left x) = S.Left x
@@ -88,6 +88,6 @@ lazyQuery q fp generate = fmap unstrict (query q fp (fmap strict generate))
         unstrict (S.Right x) = Right x
 
 -- | Gets a copy of the cache.
-getCache :: Error r => FileCacheR r a -> IO (HM.HashMap FilePath (S.Either r a, WatchDescriptor))
+getCache :: Exception e => FileCacheR e a -> IO (HM.HashMap FilePath (S.Either e a, WatchDescriptor))
 getCache (FileCache q _) = atomically (readTVar q)
 
