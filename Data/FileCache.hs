@@ -6,7 +6,7 @@ This is usually done in the following fashion :
 > cache <- newFileCache
 > o <- query cache "/path/to/file" computation
 
-The computation will be used to populate the cache if this call results in a miss.
+The computation will be used to populate the cache if this call results in a miss. The result is forced to WHNM.
 -}
 module Data.FileCache (FileCache, FileCacheR, newFileCache, killFileCache, invalidate, query, getCache, lazyQuery) where
 
@@ -74,7 +74,9 @@ query f@(FileCache q ino) fp action = do
                 [ handler _IOException (return . S.Left . fromString . show)
                 , handler id           (withWatch . S.Left . fromString . show)
                 ]
--- | Just like `query`, but with the standard "Either" type.
+-- | Just like `query`, but with the standard "Either" type. Note that it
+-- is just there for easy interoperability with the more comme "Either"
+-- type, as the result is still forced.
 lazyQuery :: IsString r
           => FileCacheR r a
           -> FilePath -- ^ Path of the file entry
