@@ -11,6 +11,11 @@ copyright:           Simon Marechal
 category:            Data
 build-type:          Simple
 cabal-version:       >=1.10
+bug-reports:         https://github.com/bartavelle/filecache/issues
+
+source-repository head
+  type: git
+  location: git://github.com/bartavelle/filecache.git
 
 test-suite simpletest
     hs-source-dirs: tests
