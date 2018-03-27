@@ -37,7 +37,7 @@ library
                      , fsnotify           == 0.2.*
                      , strict-base-types  >= 0.2.2
                      , mtl                >= 2.1   && < 2.3
-                     , exceptions         >= 0.8   && < 0.10
+                     , exceptions         >= 0.8   && < 0.11
                      , filepath           == 1.4.*
                      , time               >= 1.5  && < 2
                      , stm
