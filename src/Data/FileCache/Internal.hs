@@ -74,7 +74,7 @@ invalidate :: FilePath -> FileCacheR e a -> IO ()
 invalidate fp c = do
    cfp <- canon fp
    tm <- getCurrentTime
-   writeChan (_channel c) (Removed cfp tm)
+   writeChan (_channel c) (Removed cfp tm False)
 
 canon :: FilePath -> IO FilePath
 canon fp = canonicalizePath fp `catchAll` const (return fp)
