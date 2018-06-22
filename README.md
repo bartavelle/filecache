@@ -1,8 +1,9 @@
 # filecache
 
-[![Build Status](https://travis-ci.org/bartavelle/filecache.svg?branch=master)](https://travis-ci.org/bartavelle/filecache)
-[![filecache on Stackage LTS 3](http://stackage.org/package/filecache/badge/lts)](http://stackage.org/lts/package/filecache)
+[![Hackage](https://img.shields.io/hackage/v/filecache.svg?style=flat)](https://hackage.haskell.org/package/filecache)
+[![filecache on Stackage LTS](http://stackage.org/package/filecache/badge/lts)](http://stackage.org/lts/package/filecache)
 [![filecache on Stackage Nightly](http://stackage.org/package/filecache/badge/nightly)](http://stackage.org/nightly/package/filecache)
+[![Build Status](https://travis-ci.org/bartavelle/filecache.svg?branch=master)](https://travis-ci.org/bartavelle/filecache)
 
 A multi-platform (Linux, Mac, Windows) cache system associating values to files. The values are automatically discarded when the files are modified.
 
