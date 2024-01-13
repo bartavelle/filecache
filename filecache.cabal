@@ -1,5 +1,5 @@
 name:                filecache
-version:             0.4.1
+version:             0.5.0
 synopsis:            A cache system associating values to files.
 description:         A cache system, that works by associating computation results with file names. When the files are modified, the cache entries are discarded.
 homepage:            http://lpuppet.banquise.net/
@@ -34,9 +34,9 @@ library
   build-depends:       base               >= 4.6   && < 5
                      , containers           >= 0.5     && < 0.7
                      , directory          >= 1.2   && < 1.4
-                     , fsnotify           == 0.3.*
+                     , fsnotify           >= 0.4   && < 0.5
                      , strict-base-types  >= 0.2.2
-                     , mtl                >= 2.1   && < 2.3
+                     , mtl                >= 2.1   && < 2.4
                      , exceptions         >= 0.8   && < 0.11
                      , filepath           == 1.4.*
                      , time               >= 1.5  && < 2
