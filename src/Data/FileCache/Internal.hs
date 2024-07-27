@@ -26,7 +26,7 @@ import Prelude
 -- type must be an instance of 'Error'.
 data FileCacheR r a
     = FileCache
-    { _cache        :: TVar (M.Map FilePath (R.Either r a))
+    { _cache        :: TVar (M.Map FilePath (R.Either r a, OnModified))
     , _watchedDirs  :: TVar (M.Map FilePath (S.Set FilePath, StopListening))
     , _manager      :: WatchManager
     , _channel      :: EventChannel
@@ -35,6 +35,10 @@ data FileCacheR r a
 
 -- | A default type synonym, for String errors.
 type FileCache = FileCacheR String
+
+-- | Hook to invoke after an entry is removed from the cache
+-- (because the corresponding file has been modified)
+type OnModified = IO ()
 
 -- | Generates a new file cache. The opaque type is for use with other
 -- functions.
@@ -49,9 +53,10 @@ newFileCache = do
       let cfp = eventPath e
           dir = addTrailingPathSeparator (takeDirectory cfp)
       join $ atomically $ do
+        onModified <- maybe (return ()) snd . M.lookup cfp <$> readTVar tcache
         modifyTVar tcache $ M.delete cfp
         wdirs <- readTVar wcache
-        case M.lookup dir wdirs of
+        (onModified >>) <$> case M.lookup dir wdirs of
           Nothing -> return $ return ()
           Just (watched, stop) ->
             let watched' = S.delete cfp watched
@@ -88,7 +93,16 @@ query :: forall e a. IsString e
       -> FilePath -- ^ Path of the file entry
       -> IO (R.Either e a) -- ^ The computation that will be used to populate the cache
       -> IO (R.Either e a)
-query f@(FileCache tcache twatched wm chan tmtid) fp action = do
+query q fp = queryWith q fp (return ())
+
+-- | Generalization of 'query' that allows to specify an 'OnModified' hook
+queryWith :: forall e a. IsString e
+          => FileCacheR e a
+          -> FilePath -- ^ Path of the file entry
+          -> OnModified
+          -> IO (R.Either e a) -- ^ The computation that will be used to populate the cache
+          -> IO (R.Either e a)
+queryWith f@(FileCache tcache twatched wm chan tmtid) fp onModified action = do
   mtid <- readTVarIO tmtid
   case mtid of
     Nothing -> return (R.Left (fromString "Closed cache"))
@@ -105,7 +119,7 @@ query f@(FileCache tcache twatched wm chan tmtid) fp action = do
         withWatch canonical value = value <$ (addWatch canonical value `catchAll` traceShowM )
         addWatch canonical value = join $ atomically $ do
           let cpath = addTrailingPathSeparator (takeDirectory canonical)
-          modifyTVar tcache (M.insert canonical value)
+          modifyTVar tcache (M.insert canonical (value, onModified))
           watched <- readTVar twatched
           case M.lookup cpath watched of
             Nothing -> return $ do
@@ -131,5 +145,4 @@ lazyQuery q fp generate = fmap unstrict (query q fp (fmap strict generate))
 
 -- | Gets a copy of the cache.
 getCache :: FileCacheR e a -> IO (M.Map FilePath (R.Either e a))
-getCache = atomically . readTVar . _cache
-
+getCache = atomically . fmap (fmap fst) . readTVar . _cache
