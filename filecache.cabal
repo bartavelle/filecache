@@ -1,5 +1,5 @@
 name:                filecache
-version:             0.5.0
+version:             0.5.1
 synopsis:            A cache system associating values to files.
 description:         A cache system, that works by associating computation results with file names. When the files are modified, the cache entries are discarded.
 homepage:            http://lpuppet.banquise.net/
