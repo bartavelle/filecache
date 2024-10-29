@@ -1,7 +1,7 @@
 # filecache
 
 [![Hackage](https://img.shields.io/hackage/v/filecache.svg?style=flat)](https://hackage.haskell.org/package/filecache)
-[![Build Status](https://travis-ci.org/bartavelle/filecache.svg?branch=master)](https://travis-ci.org/bartavelle/filecache)
+[![Haskell-CI](https://github.com/bartavelle/filecache/actions/workflows/haskell-ci.yml/badge.svg)](https://github.com/bartavelle/filecache/actions/workflows/haskell-ci.yml)
 
 A multi-platform (Linux, Mac, Windows) cache system associating values to files. The values are automatically discarded when the files are modified.
 
