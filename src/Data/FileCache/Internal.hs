@@ -10,7 +10,7 @@ import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
 import Control.Monad.Catch
-import qualified Data.Either.Strict as R
+import qualified Data.Strict.Either as R
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 import Data.String
